@@ -1,0 +1,55 @@
+# Copy to config.yaml and set PYTHON_EXECUTABLE and WEBHOOK_TOKEN_SHA256.
+general:
+  host: 127.0.0.1
+  port: 8080
+  url: http://localhost:8080
+  log_level: info
+  max_body_bytes: 1048576
+  body_timeout_seconds: 30
+  max_concurrent_requests: 8
+  # ssl:
+  #   certfile: certs/server.crt
+  #   keyfile: certs/server.key
+
+webhook:
+  echo:
+    path: /hooks/echo
+    methods: [POST]
+    enabled: true
+    expose_output: true
+    actions:
+      - type: command
+        command: ['${PYTHON_EXECUTABLE}', examples/echo_payload.py]
+        cwd: .
+        env:
+          PYTHONIOENCODING: utf-8
+        timeout_seconds: 30
+        stdin_from_payload: true
+        max_output_bytes: 65536
+  forward:
+    path: /hooks/forward
+    methods: [POST]
+    enabled: false
+    expose_output: false
+    actions:
+      - type: http
+        url: https://example.com/webhook
+        method: POST
+        forward_payload: true
+        timeout_seconds: 30
+        max_output_bytes: 65536
+
+security:
+  roles:
+    echo_runner: [echo]
+    integration_runner: [echo, forward]
+  users:
+    integration:
+      roles: [integration_runner, echo_runner]
+      enabled: true
+  tokens:
+    echo_token:
+      user: integration
+      sha256: '${WEBHOOK_TOKEN_SHA256}'
+      roles: [echo_runner]
+      enabled: true

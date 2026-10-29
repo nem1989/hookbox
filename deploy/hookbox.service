@@ -1,0 +1,23 @@
+[Unit]
+Description=Hookbox webhook integration service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=hookbox
+Group=hookbox
+WorkingDirectory=/opt/hookbox
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/etc/hookbox.env
+ExecStart=/opt/hookbox/.venv/bin/python /opt/hookbox/main.py --config /opt/hookbox/config.yaml
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+KillMode=control-group
+TimeoutStopSec=120
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
