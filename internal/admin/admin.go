@@ -86,9 +86,16 @@ func (p *panel) config(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "PUT" {
 		src, err = io.ReadAll(http.MaxBytesReader(w, r.Body, config.MaxSize))
 		if err != nil { http.Error(w, "Invalid configuration body or size", 413); return }
-		if _, err := config.Load(src, filepath.Dir(p.path)); err != nil {
+		cfg, err := config.Load(src, filepath.Dir(p.path))
+		if err != nil {
 			http.Error(w, err.Error(), 422)
 			return
+		}
+		for _, token := range cfg.Security.Tokens {
+			if token.Hash == p.hash {
+				http.Error(w, "Management and webhook tokens must be distinct", 422)
+				return
+			}
 		}
 	}
 	p.mu.Lock()

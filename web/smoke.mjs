@@ -27,7 +27,7 @@ try {
   }
   assert.equal((await fetch(address+'/api/config')).status,401)
   assert.equal((await fetch('http://127.0.0.1:18780/api/config')).status,404)
-  browser=await chromium.launch()
+  browser=await chromium.launch({channel:'chrome'})
   const page=await browser.newPage()
   const errors=[]
   page.on('pageerror',e=>errors.push(e.message))

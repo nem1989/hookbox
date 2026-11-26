@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"io"
@@ -32,7 +33,7 @@ security:
     no_token: {user: u, sha256: '%x', roles: []}
 `,upstream.URL,sha256.Sum256([]byte("yes")),sha256.Sum256([]byte("no")))),t.TempDir())
 	if err != nil { t.Fatal(err) }
-	h := NewHooks(c)
+	h := NewHooks(context.Background(), c)
 	for _, tc := range []struct{ method, path, token, media, body string; want int }{
 		{"GET","/healthz","","","",200},{"GET","/hooks/echo","yes","","",405},
 		{"POST","/missing","yes","","",404},{"POST","/hooks/echo","","","",401},
@@ -76,7 +77,7 @@ security:
 `,upstream.URL,tc.path,sha256.Sum256([]byte("token")))),t.TempDir())
 		if err!=nil {t.Fatal(err)}
 		r:=httptest.NewRequest("POST","/hooks/x",nil);r.Header.Set("Authorization","Bearer token")
-		w:=httptest.NewRecorder();NewHooks(c).ServeHTTP(w,r)
+		w:=httptest.NewRecorder();NewHooks(t.Context(), c).ServeHTTP(w,r)
 		if w.Code!=tc.want || !strings.Contains(w.Body.String(),tc.code) || strings.Contains(w.Body.String(),`"body":`) {t.Fatalf("%s: %d %s",tc.path,w.Code,w.Body)}
 	}
 }
@@ -91,7 +92,7 @@ webhook: {w: {actions: [{type: http, url: '%s'}]}}
 security: {roles: {r: [w]}, users: {u: {roles: [r]}}, tokens: {t: {user: u, sha256: '%x'}}}
 `,upstream.URL,sha256.Sum256([]byte("t")))), t.TempDir())
 	if err!=nil{t.Fatal(err)}
-	h:=NewHooks(cfg)
+	h:=NewHooks(t.Context(), cfg)
 	call:=func(body string)int{r:=httptest.NewRequest("POST","/hooks/w",strings.NewReader(body));r.Header.Set("Authorization","Bearer t");w:=httptest.NewRecorder();h.ServeHTTP(w,r);return w.Code}
 	if call("12345")!=413{t.Fatal("oversized request accepted")}
 	go call("")

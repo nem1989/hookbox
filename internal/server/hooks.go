@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -40,7 +41,7 @@ func BearerHash(r *http.Request) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func NewHooks(c *config.Config) http.Handler {
+func NewHooks(serviceCtx context.Context, c *config.Config) http.Handler {
 	paths := make(map[string]string)
 	for name, h := range c.Hooks {
 		if h.Enabled {
@@ -112,7 +113,9 @@ func NewHooks(c *config.Config) http.Handler {
 		reply := map[string]any{"request_id": requestID, "webhook": name, "status": "ok"}
 		status := 200
 		for i, a := range h.Actions {
-			result, err := actions.Execute(r.Context(), a, body, h.Expose)
+			// Once accepted, a chain belongs to the service. Disconnecting a client
+			// must not interrupt a script partway through its operation.
+			result, err := actions.Execute(serviceCtx, a, body, h.Expose)
 			if err != nil {
 				var pub *actions.Error
 				if !errors.As(err, &pub) {

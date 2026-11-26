@@ -92,7 +92,9 @@ func consoleRun(start func(context.Context) error) error {
 
 func serve(ctx context.Context, c *config.Config, panel http.Handler, panelAddr string) error {
 	type endpoint struct { addr string; h http.Handler }
-	list := []endpoint{{net.JoinHostPort(c.General.Host, strconv.Itoa(c.General.Port)), server.NewHooks(c)}}
+	serverCtx, stop := context.WithCancel(ctx)
+	defer stop()
+	list := []endpoint{{net.JoinHostPort(c.General.Host, strconv.Itoa(c.General.Port)), server.NewHooks(serverCtx, c)}}
 	if panel != nil { list = append(list, endpoint{panelAddr, panel}) }
 	var certs *tls.Config
 	if ssl := c.General.SSL; ssl != nil {
@@ -108,8 +110,6 @@ func serve(ctx context.Context, c *config.Config, panel http.Handler, panelAddr 
 		if certs != nil { l = tls.NewListener(l, certs) }
 		listeners = append(listeners, l)
 	}
-	serverCtx, stop := context.WithCancel(ctx)
-	defer stop()
 	done := make(chan error, len(list))
 	servers := make([]*http.Server, 0, len(list))
 	for i, item := range list {
