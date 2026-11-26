@@ -40,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-2022]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -111,7 +111,13 @@ jobs:
             $manager = Start-Process -FilePath (Resolve-Path 'dist/windows/Hookbox Manager.exe') -WindowStyle Hidden -RedirectStandardError $managerLog -PassThru
             try {
               node web/manager-smoke.mjs
-              if ($LASTEXITCODE) { throw 'Manager could not open the shared panel' }
+              if ($LASTEXITCODE) {
+                $manager.Refresh()
+                Write-Host "Manager exited=$($manager.HasExited) window=$($manager.MainWindowHandle) title=$($manager.MainWindowTitle)"
+                Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=(Get-Date).AddMinutes(-5);Level=2} -ErrorAction SilentlyContinue |
+                  Where-Object Message -Match 'Hookbox Manager' | Select-Object -First 3 -ExpandProperty Message | Write-Host
+                throw 'Manager could not open the shared panel'
+              }
             } finally {
               if (!$manager.HasExited) { $manager.Kill(); $manager.WaitForExit() }
               if (Test-Path $managerLog) { Get-Content -LiteralPath $managerLog }

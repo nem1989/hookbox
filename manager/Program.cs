@@ -42,7 +42,7 @@ internal sealed class Manager : Form
         connect.Enabled = false;
         connect.Click += (_, _) => Navigate();
         address.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter && connect.Enabled) { e.SuppressKeyPress = true; Navigate(); } };
-        Shown += async (_, _) => await InitializeBrowser();
+        Load += async (_, _) => await InitializeBrowser();
         poll.Tick += (_, _) => RefreshService();
         FormClosed += (_, _) => poll.Dispose();
         RefreshService();
@@ -58,6 +58,7 @@ internal sealed class Manager : Form
         {
             if (File.Exists(Path.Combine(AppContext.BaseDirectory, "WebView2Loader.dll")))
                 CoreWebView2Environment.SetLoaderDllFolderPath(AppContext.BaseDirectory);
+            Console.Error.WriteLine("WebView2 Runtime " + CoreWebView2Environment.GetAvailableBrowserVersionString());
             var profile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Hookbox", "WebView2");
             var env = await CoreWebView2Environment.CreateAsync(userDataFolder: profile);
             await view.EnsureCoreWebView2Async(env);
