@@ -20,5 +20,11 @@ $psi.Arguments = 'create Hookbox binPath= "' + $binaryPath.Replace('"','\"') + '
 $process = [Diagnostics.Process]::Start($psi)
 $process.WaitForExit()
 if ($process.ExitCode -ne 0) { throw "sc.exe create failed ($($process.ExitCode))" }
-New-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Services\Hookbox' -Name Environment -PropertyType MultiString -Value @("HOOKBOX_ADMIN_SHA256=$AdminSha256") | Out-Null
+try {
+    New-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Services\Hookbox' -Name Environment -PropertyType MultiString -Value @("HOOKBOX_ADMIN_SHA256=$AdminSha256") | Out-Null
+} catch {
+    # Only reached after this invocation successfully created the service.
+    & "$env:SystemRoot\System32\sc.exe" delete Hookbox | Out-Null
+    throw
+}
 Write-Output 'Hookbox installed. Grant LocalService access to the configuration directory and start the service.'

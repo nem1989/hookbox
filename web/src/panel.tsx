@@ -17,6 +17,23 @@ function decode(source: string) {
   if (doc.errors.length) throw new Error(doc.errors[0].message)
   return doc
 }
+function validateItem(kind: Kind, value: any) {
+  const object = (item: unknown) => !!item && typeof item === 'object' && !Array.isArray(item)
+  const strings = (items: unknown) => Array.isArray(items) && items.every(s => typeof s === 'string')
+  if (kind === 'roles') {
+    if (!strings(value)) throw new Error('Роль должна содержать список идентификаторов вебхуков.')
+    return
+  }
+  if (!object(value)) throw new Error('Запись должна быть объектом YAML.')
+  if (kind === 'webhook') {
+    if ((value.methods != null && !strings(value.methods)) || !Array.isArray(value.actions) ||
+        value.actions.some((a: any) => !object(a) || (a.type === 'command' && !strings(a.command)))) {
+      throw new Error('Проверь списки методов, действий и аргументов команды.')
+    }
+  } else if (value.roles != null && !strings(value.roles)) {
+    throw new Error('Поле roles должно содержать список идентификаторов ролей.')
+  }
+}
 function metadata(kind: Kind, id: string, item: any): string {
   if (kind === 'webhook') return (item.methods || ['POST']).join(', ') + '   ' + (item.path || '/hooks/' + id)
   if (kind === 'roles') return item.join(', ') || 'Нет доступных хуков'
@@ -146,11 +163,19 @@ function Panel() {
     {error && <Alert color="red">{error}</Alert>}<Button type="submit" loading={busy}>Подключиться</Button>
   </form></main>
   let model: Model = {}, parseError = ''
-  try {model = decode(source).toJS() || {}} catch(err){parseError = String(err)}
+  try {
+    const candidate = decode(source).toJS() || {}
+    for (const k of Object.keys(sections) as Kind[]) {
+      const entries = k === 'webhook' ? candidate.webhook : candidate.security?.[k]
+      for (const v of Object.values(entries || {})) validateItem(k, v)
+    }
+    model = candidate
+  } catch(err){parseError = String(err)}
   const items: Record<string,any> = section === 'webhook' ? model.webhook || {} : section === 'yaml' ? {} : model.security?.[section] || {}
   function apply(id: string, value: any) {
     if (section === 'yaml') return
     if (!edit?.id && Object.hasOwn(items,id)) throw new Error('Такой идентификатор уже существует')
+    validateItem(section,value)
     const d = decode(source); d.setIn(itemPath(section,id), value); setSource(d.toString()); setEdit(null); setNotice('')
   }
   return <div className="shell"><aside><div className="brand"><span>H</span> Hookbox</div><nav>

@@ -96,6 +96,15 @@ jobs:
             if ($h.status -ne 'ok') { throw 'Service health check failed' }
             $config = Invoke-WebRequest 'http://127.0.0.1:8081/api/config' -Headers @{Authorization="Bearer $($token.token)"}
             if ($config.StatusCode -ne 200) { throw 'Management listener unavailable' }
+            $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=18784 --remote-debugging-address=127.0.0.1'
+            $env:HOOKBOX_MANAGER_TEST_TOKEN = $token.token
+            $manager = Start-Process -FilePath (Resolve-Path 'dist/windows/Hookbox Manager.exe') -WindowStyle Hidden -PassThru
+            try {
+              node web/manager-smoke.mjs
+              if ($LASTEXITCODE) { throw 'Manager could not open the shared panel' }
+            } finally {
+              if (!$manager.HasExited) { $manager.Kill(); $manager.WaitForExit() }
+            }
             Restart-Service Hookbox
             Stop-Service Hookbox
           } finally {

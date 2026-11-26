@@ -99,3 +99,35 @@ security: {roles: {r: [w]}, users: {u: {roles: [r]}}, tokens: {t: {user: u, sha2
 	select{case <-started: case <-time.After(5*time.Second):t.Fatal("request did not start")}
 	if call("")!=503{t.Fatal("slot limit not enforced")}
 }
+
+func TestAcceptedActionFinishesAfterClientDisconnect(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		select {
+		case <-r.Context().Done(): return
+		case <-release: w.WriteHeader(http.StatusCreated)
+		}
+	}))
+	defer upstream.Close()
+	cfg, err := config.Load([]byte(fmt.Sprintf(`webhook: {w: {actions: [{type: http, url: '%s'}]}}
+security: {roles: {r: [w]}, users: {u: {roles: [r]}}, tokens: {t: {user: u, sha256: '%x'}}}
+`, upstream.URL, sha256.Sum256([]byte("test")))), t.TempDir())
+	if err != nil { t.Fatal(err) }
+	client, disconnect := context.WithCancel(t.Context())
+	defer disconnect()
+	r := httptest.NewRequest("POST", "/hooks/w", nil).WithContext(client)
+	r.Header.Set("Authorization", "Bearer test")
+	w := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() { NewHooks(t.Context(), cfg).ServeHTTP(w, r); close(done) }()
+	select {
+	case <-started:
+	case <-time.After(5*time.Second): close(release); t.Fatal("action did not start")
+	}
+	disconnect()
+	close(release)
+	<-done
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"status_code":201`) { t.Fatal(w.Code, w.Body) }
+}
