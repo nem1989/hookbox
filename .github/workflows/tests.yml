@@ -19,23 +19,6 @@ jobs:
       - run: go mod download
       - run: go test -race -count=1 -timeout=3m ./...
 
-  regression:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        python: ['3.11', '3.14']
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python }}
-          cache: pip
-          cache-dependency-path: requirements*.txt
-      - run: python -m pip install -r requirements-dev.txt
-      - run: python -m pytest -q
-
   distribution:
     strategy:
       fail-fast: false
@@ -60,7 +43,8 @@ jobs:
         run: |
           mkdir -p dist/linux
           go build -trimpath -o dist/linux/hookbox ./cmd/hookbox
-          cp deploy/go/config.example.yaml deploy/go/hookbox.service deploy/go/README.md dist/linux/
+          cp config.example.yaml deploy/go/hookbox.service deploy/go/README.md dist/linux/
+          dist/linux/hookbox --config dist/linux/config.example.yaml --check-config
           tar -C dist/linux -czf dist/hookbox-linux-amd64.tar.gz .
       - name: Exercise the packaged service and panel in Chromium
         if: runner.os == 'Linux'
@@ -80,7 +64,7 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           dotnet publish manager/HookboxManager.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o dist/windows
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          Copy-Item deploy/go/config.example.yaml,deploy/go/install-service.ps1,deploy/go/README.md dist/windows
+          Copy-Item config.example.yaml,deploy/go/install-service.ps1,deploy/go/README.md dist/windows
           if (!(Test-Path -LiteralPath 'dist/windows/Hookbox Manager.exe')) { throw 'Missing Windows Manager' }
       - name: Exercise Windows Service Control Manager
         if: runner.os == 'Windows'

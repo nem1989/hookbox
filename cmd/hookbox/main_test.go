@@ -20,3 +20,18 @@ func TestCLI(t *testing.T){
 	if err:=run([]string{"--check-config","--config",path},&buf);err!=nil{t.Fatal(err)}
 	if err:=run([]string{"--check-config","--generate-token"},&buf);err==nil{t.Fatal("conflicting flags")}
 }
+
+// The sample distributed with the Go service must start without any legacy
+// interpreter setting or previously provisioned webhook token.
+func TestDistributedExampleConfig(t *testing.T) {
+	for _, key := range []string{"PYTHON_EXECUTABLE", "WEBHOOK_TOKEN_SHA256"} {
+		t.Setenv(key, "")
+		if err := os.Unsetenv(key); err != nil {
+			t.Fatal(err)
+		}
+	}
+	path := filepath.Join("..", "..", "config.example.yaml")
+	if err := run([]string{"--config", path, "--check-config"}, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+}

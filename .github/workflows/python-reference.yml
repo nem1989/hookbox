@@ -1,0 +1,28 @@
+name: Archived Python reference
+on:
+  workflow_dispatch:
+  push:
+    paths: ['reference/python/**', '.github/workflows/python-reference.yml']
+  pull_request:
+    paths: ['reference/python/**', '.github/workflows/python-reference.yml']
+
+jobs:
+  regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11', '3.14']
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: reference/python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: reference/python/requirements*.txt
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pytest -q
