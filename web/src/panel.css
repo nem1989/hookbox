@@ -1,0 +1,15 @@
+:root{font-family:Inter,"Segoe UI",sans-serif;color:#1b2928;background:#f5f7f6}
+body{margin:0}.shell{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh;background:#f5f7f6}
+aside{background:#172e2c;color:#f4faf8;padding:30px 18px;display:flex;flex-direction:column;gap:40px}
+.brand{font-size:1.35rem;font-weight:700;display:flex;align-items:center;gap:11px;letter-spacing:-.04em}
+.brand span{background:#abefcb;color:#14352e;border-radius:8px;padding:1px 9px;font-weight:800}
+nav{display:grid;gap:5px}nav button,.logout,.entity{font:inherit;border:0;background:transparent;text-align:left;cursor:pointer}
+nav button,.logout{color:#c9dad7;border-radius:7px;padding:10px 12px}nav .selected{color:white;background:#314d48}
+nav i{display:inline-block;width:26px;color:#a4d7c3;font-style:normal}.logout{margin-top:auto}
+.work{padding:clamp(22px,4vw,64px);min-width:0}.work header,.listbar,.entry{display:flex;align-items:center;justify-content:space-between;gap:16px}
+header{margin-bottom:32px}h1{letter-spacing:-.04em}.listbar{margin-bottom:12px}.entries,.action,.login form{background:white;border:1px solid #dae4df;border-radius:12px}
+.entry{padding:12px 16px;border-bottom:1px solid #e4eae7}.entry:last-child{border:0}.entity{flex:1;min-width:0;padding:4px;color:inherit}
+.entity strong,.entity small{display:block;overflow-wrap:anywhere}.entity small{font-family:Consolas,monospace;color:#5c6f69;margin-top:4px}
+.action{padding:15px}.action>div:first-child{margin-bottom:10px}.mono textarea{font-family:Consolas,monospace}
+.login{max-width:430px;margin:12vh auto;padding:18px}.login form{display:grid;gap:20px;padding:28px;margin-top:24px}
+@media(max-width:750px){.shell{display:block}aside{padding:12px 16px;gap:12px}nav{display:flex;flex-wrap:wrap;gap:0}nav button,.logout{padding:5px 8px}nav i{display:none}.logout{position:absolute;right:15px;top:12px}.work{padding:20px 14px}header{flex-wrap:wrap}.entry{gap:6px}}

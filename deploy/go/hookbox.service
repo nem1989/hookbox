@@ -1,0 +1,16 @@
+[Unit]
+Description=Hookbox webhook service
+After=network.target
+
+[Service]
+User=hookbox
+Group=hookbox
+WorkingDirectory=/opt/hookbox
+EnvironmentFile=/etc/hookbox.env
+ExecStart=/opt/hookbox/hookbox --config /etc/hookbox/config.yaml
+Restart=on-failure
+TimeoutStopSec=30
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

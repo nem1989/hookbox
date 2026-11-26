@@ -35,3 +35,83 @@ jobs:
           cache-dependency-path: requirements*.txt
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m pytest -q
+
+  distribution:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build embedded management panel
+        working-directory: web
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+      - name: Build Linux service
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p dist/linux
+          go build -trimpath -o dist/linux/hookbox ./cmd/hookbox
+          cp deploy/go/config.example.yaml deploy/go/hookbox.service deploy/go/README.md dist/linux/
+          tar -C dist/linux -czf dist/hookbox-linux-amd64.tar.gz .
+      - name: Exercise the packaged service and panel in Chromium
+        if: runner.os == 'Linux'
+        working-directory: web
+        run: |
+          npx playwright install --with-deps chromium
+          node smoke.mjs ../dist/linux/hookbox
+      - uses: actions/setup-dotnet@v4
+        if: runner.os == 'Windows'
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build Windows service and Manager
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist/windows | Out-Null
+          go build -trimpath -o dist/windows/hookbox.exe ./cmd/hookbox
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          dotnet publish manager/HookboxManager.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o dist/windows
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Copy-Item deploy/go/config.example.yaml,deploy/go/install-service.ps1,deploy/go/README.md dist/windows
+          if (!(Test-Path -LiteralPath 'dist/windows/Hookbox Manager.exe')) { throw 'Missing Windows Manager' }
+      - name: Exercise Windows Service Control Manager
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item dist/windows/config.example.yaml dist/windows/config.yaml
+          $token = (dist/windows/hookbox.exe --generate-token | ConvertFrom-Json)
+          ./dist/windows/install-service.ps1 -InstallDirectory dist/windows -AdminSha256 $token.sha256
+          try {
+            Start-Service Hookbox
+            (Get-Service Hookbox).WaitForStatus('Running','00:00:20')
+            $h = Invoke-RestMethod 'http://127.0.0.1:8080/healthz' -MaximumRetryCount 10 -RetryIntervalSec 1
+            if ($h.status -ne 'ok') { throw 'Service health check failed' }
+            $config = Invoke-WebRequest 'http://127.0.0.1:8081/api/config' -Headers @{Authorization="Bearer $($token.token)"}
+            if ($config.StatusCode -ne 200) { throw 'Management listener unavailable' }
+            Restart-Service Hookbox
+            Stop-Service Hookbox
+          } finally {
+            sc.exe delete Hookbox
+            Remove-Item -LiteralPath dist/windows/config.yaml
+          }
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: hookbox-windows-amd64
+          path: dist/windows/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: hookbox-linux-amd64
+          path: dist/hookbox-linux-amd64.tar.gz
+          if-no-files-found: error

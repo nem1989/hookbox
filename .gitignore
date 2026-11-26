@@ -8,3 +8,9 @@ htmlcov/
 config.yaml
 *.log
 .env
+web/node_modules/
+internal/admin/static/app.js
+internal/admin/static/app.css
+manager/bin/
+manager/obj/
+dist/

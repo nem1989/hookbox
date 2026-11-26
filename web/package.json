@@ -1,0 +1,23 @@
+{
+  "name": "hookbox-panel",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "build": "npm run check && esbuild src/panel.tsx --bundle --minify --legal-comments=eof --outfile=../internal/admin/static/app.js --loader:.css=css"
+  },
+  "dependencies": {
+    "@mantine/core": "7.17.8",
+    "@mantine/hooks": "7.17.8",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "yaml": "2.8.1"
+  },
+  "devDependencies": {
+    "playwright": "1.55.0",
+    "@types/react": "18.3.23",
+    "@types/react-dom": "18.3.7",
+    "esbuild": "0.25.9",
+    "typescript": "5.8.3"
+  }
+}
