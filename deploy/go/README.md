@@ -4,7 +4,7 @@
 
 ## Первый запуск на Windows
 
-Распакуй архив в постоянную папку. Оба EXE должны находиться в этой папке. Для Manager требуется Microsoft Edge WebView2 Runtime. Сгенерируй токен и сохрани значение поля `token` для входа в панель.
+Распакуй архив в постоянную папку. Оба EXE и `WebView2Loader.dll` должны находиться в этой папке. Для Manager требуется Microsoft Edge WebView2 Runtime. Сгенерируй токен и сохрани значение поля `token` для входа в панель.
 
 ```powershell
 Copy-Item config.example.yaml config.yaml

@@ -56,6 +56,8 @@ internal sealed class Manager : Form
     {
         try
         {
+            if (File.Exists(Path.Combine(AppContext.BaseDirectory, "WebView2Loader.dll")))
+                CoreWebView2Environment.SetLoaderDllFolderPath(AppContext.BaseDirectory);
             var profile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Hookbox", "WebView2");
             var env = await CoreWebView2Environment.CreateAsync(userDataFolder: profile);
             await view.EnsureCoreWebView2Async(env);
@@ -68,6 +70,7 @@ internal sealed class Manager : Form
         }
         catch (Exception exc)
         {
+            Console.Error.WriteLine(exc);
             MessageBox.Show(this, "Не удалось открыть WebView2. Проверь установку Microsoft Edge WebView2 Runtime.\n" + exc.Message, Text);
         }
     }

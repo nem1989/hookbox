@@ -86,6 +86,15 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          $webViewPath = "${env:ProgramFiles(x86)}\Microsoft\EdgeWebView\Application\*\msedgewebview2.exe"
+          if (!(Test-Path $webViewPath)) {
+            $installer = Join-Path $env:RUNNER_TEMP 'MicrosoftEdgeWebview2Setup.exe'
+            Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $installer
+            $sign = Get-AuthenticodeSignature -LiteralPath $installer
+            if ($sign.Status -ne 'Valid' -or $sign.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { throw 'Unexpected WebView2 installer signature' }
+            $install = Start-Process -FilePath $installer -ArgumentList '/silent','/install' -WindowStyle Hidden -PassThru -Wait
+            if ($install.ExitCode) { throw "WebView2 Runtime setup failed ($($install.ExitCode))" }
+          }
           Copy-Item dist/windows/config.example.yaml dist/windows/config.yaml
           $token = (dist/windows/hookbox.exe --generate-token | ConvertFrom-Json)
           ./dist/windows/install-service.ps1 -InstallDirectory dist/windows -AdminSha256 $token.sha256
@@ -98,12 +107,14 @@ jobs:
             if ($config.StatusCode -ne 200) { throw 'Management listener unavailable' }
             $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=18784 --remote-debugging-address=127.0.0.1'
             $env:HOOKBOX_MANAGER_TEST_TOKEN = $token.token
-            $manager = Start-Process -FilePath (Resolve-Path 'dist/windows/Hookbox Manager.exe') -WindowStyle Hidden -PassThru
+            $managerLog = Join-Path $env:RUNNER_TEMP 'hookbox-manager.stderr'
+            $manager = Start-Process -FilePath (Resolve-Path 'dist/windows/Hookbox Manager.exe') -WindowStyle Hidden -RedirectStandardError $managerLog -PassThru
             try {
               node web/manager-smoke.mjs
               if ($LASTEXITCODE) { throw 'Manager could not open the shared panel' }
             } finally {
               if (!$manager.HasExited) { $manager.Kill(); $manager.WaitForExit() }
+              if (Test-Path $managerLog) { Get-Content -LiteralPath $managerLog }
             }
             Restart-Service Hookbox
             Stop-Service Hookbox
