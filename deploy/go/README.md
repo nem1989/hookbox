@@ -4,21 +4,17 @@
 
 ## Первый запуск на Windows
 
-Распакуй архив в постоянную папку. Оба EXE и `WebView2Loader.dll` должны находиться в этой папке. Для Manager требуется Microsoft Edge WebView2 Runtime. Сгенерируй токен и сохрани значение поля `token` для входа в панель.
+Распакуй архив в постоянную папку. Для Manager требуется Microsoft Edge WebView2 Runtime. Дважды щёлкни `Start Hookbox.cmd`. При первом запуске он создаст `config.yaml` из примера, если файл ещё отсутствует. В консоли появится `Manager sign-in token` для текущего запуска. Если уже задан `HOOKBOX_ADMIN_SHA256`, используй соответствующий ему токен.
 
-```powershell
-Copy-Item config.example.yaml config.yaml
-$admin = .\hookbox.exe --generate-token | ConvertFrom-Json
-$admin.token
-$env:HOOKBOX_ADMIN_SHA256 = $admin.sha256
-.\hookbox.exe --config config.yaml
-```
+Дождись строки `management=true` и оставь консоль открытой. Если запущенный ранее экземпляр занимает порт, закрой его консоль перед повторным запуском. Адрес вебхуков задаётся в `general.host` и `general.port`. Адрес локальной панели по умолчанию — `http://127.0.0.1:8081/`.
 
 Открой `Hookbox Manager.exe` и подключись к локальной панели. Для удалённого сервера укажи HTTPS-адрес его панели. Меню «Локальная служба» управляет службой Windows на этом компьютере.
 
 Для установки службы заверши консольный экземпляр. В PowerShell от администратора выполни следующие команды из каталога с дистрибутивом. Конфигурацию лучше хранить отдельно от исполняемых файлов. Предоставь `NT AUTHORITY\LocalService` чтение и исполнение файлов программы и право изменения в каталоге конфигурации. Право изменять EXE службе не требуется.
 
 ```powershell
+$admin = .\hookbox.exe --generate-token | ConvertFrom-Json
+$admin.token  # Сохрани этот токен для входа в панель службы.
 .\install-service.ps1 -ConfigPath 'C:\ProgramData\Hookbox\config.yaml' -AdminSha256 $admin.sha256
 Start-Service Hookbox
 ```

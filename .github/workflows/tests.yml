@@ -64,8 +64,11 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           dotnet publish manager/HookboxManager.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -o dist/windows
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          Copy-Item config.example.yaml,deploy/go/install-service.ps1,deploy/go/README.md dist/windows
+          Copy-Item 'config.example.yaml','deploy/go/install-service.ps1','deploy/go/Start Hookbox.cmd','deploy/go/README.md' dist/windows
           if (!(Test-Path -LiteralPath 'dist/windows/Hookbox Manager.exe')) { throw 'Missing Windows Manager' }
+      - name: Exercise portable Windows startup with a new and existing configuration
+        if: runner.os == 'Windows'
+        run: node deploy/go/start-local.test.mjs dist/windows
       - name: Exercise Windows Service Control Manager
         if: runner.os == 'Windows'
         shell: pwsh

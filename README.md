@@ -6,7 +6,7 @@ Hookbox — сервис вебхуков для Windows и Linux. Служба 
 
 Готовые сборки `hookbox-windows-amd64` и `hookbox-linux-amd64` доступны в разделе Artifacts успешного прогона [GitHub Actions](https://github.com/nem1989/hookbox/actions/workflows/tests.yml?query=branch%3Amain). В комплект Windows входят `hookbox.exe`, `Hookbox Manager.exe` и загрузчик WebView2. В Linux комплект включает бинарник `hookbox` и unit systemd.
 
-Скопируй `config.example.yaml` в `config.yaml`. Служба по умолчанию слушает `127.0.0.1:8080`. Для включения панели на `127.0.0.1:8081` задай отдельный административный токен по [инструкции по установке](deploy/go/README.md). Manager и браузер открывают одну панель. Windows Manager дополнительно управляет локальной службой.
+Для локального запуска на Windows дважды щёлкни `Start Hookbox.cmd`, затем открой `Hookbox Manager.exe` и введи токен из консоли. Порт вебхуков задаётся в `config.yaml` (по умолчанию 8080), панель открывается на `127.0.0.1:8081`. Установка постоянной службы на Windows и Linux описана в [инструкции по установке](deploy/go/README.md).
 
 ## Разработка
 
