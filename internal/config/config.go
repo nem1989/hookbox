@@ -23,6 +23,7 @@ import (
 type General struct {
 	Host string `json:"host"`
 	Port int `json:"port"`
+	AdminPort int `json:"admin_port"`
 	URL *string `json:"url"`
 	SSL *TLS `json:"ssl"`
 	Level string `json:"log_level"`
@@ -151,7 +152,7 @@ func Load(data []byte,dir string)(*Config,error){
 	budget:=200000
 	v,err:=value(doc.Content[0],&budget,0);if err!=nil{return nil,err}
 	b,err:=json.Marshal(v);if err!=nil{return nil,errors.New("invalid YAML value")}
-	c:=&Config{General:General{Host:"127.0.0.1",Port:8080,Level:"info",MaxBody:1<<20,BodyTimeout:30,Concurrent:8}}
+	c:=&Config{General:General{Host:"127.0.0.1",Port:8080,AdminPort:8081,Level:"info",MaxBody:1<<20,BodyTimeout:30,Concurrent:8}}
 	if err:=strict(b,c);err!=nil{return nil,errors.New("configuration contains an unknown field or invalid type")}
 	return c,c.validate(dir)
 }
@@ -164,6 +165,7 @@ func Timeout(s float64)time.Duration{return time.Duration(s*float64(time.Second)
 func validSeconds(s float64)bool{return s>0&&s<float64(math.MaxInt64)/1e9&&Timeout(s)>0}
 func (c *Config) validate(dir string)error{
 	g:=&c.General
+	if g.AdminPort < 1 || g.AdminPort > 65535 { return errors.New("general.admin_port must be between 1 and 65535") }
 	if g.Host==""||strings.ContainsAny(g.Host," \r\n\t")||g.Port<1||g.Port>65535||g.Concurrent<1||g.MaxBody<1||!validSeconds(g.BodyTimeout)||!slices.Contains([]string{"critical","error","warning","info","debug"},g.Level)||(g.URL!=nil&&!validURL(*g.URL)){return errors.New("invalid general settings")}
 	if g.SSL!=nil {if strings.TrimSpace(g.SSL.Key)==""||strings.TrimSpace(g.SSL.Cert)==""{return errors.New("invalid TLS paths")};g.SSL.Key=absolute(dir,g.SSL.Key);g.SSL.Cert=absolute(dir,g.SSL.Cert)}
 	if c.Hooks==nil||c.Security==nil{return errors.New("webhook and security sections required")}

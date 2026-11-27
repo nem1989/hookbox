@@ -21,3 +21,18 @@ func TestConfiguration(t *testing.T) {
 		fixture+"---\n{}\n",
 	}{if _,err:=Load([]byte(bad),dir);err==nil {t.Error("accepted invalid configuration")}}
 }
+
+func TestAdminPort(t *testing.T) {
+    const base = "webhook: {}\nsecurity: {}\n"
+    for _, tc := range []struct { general string; want int }{
+        {"{}", 8081}, {"{port: 8090}", 8081}, {"{port: 8090, admin_port: 8091}", 8091},
+        {"{admin_port: 1}", 1}, {"{admin_port: 65535}", 65535}, {"{admin_port: 0}", 0}, {"{admin_port: 65536}", 0},
+    } {
+        c, err := Load([]byte(base+"general: "+tc.general+"\n"), t.TempDir())
+        if tc.want == 0 {
+            if err == nil { t.Errorf("accepted %s",tc.general) }
+        } else if err != nil || c.General.AdminPort != tc.want {
+            t.Errorf("unexpected admin port for %s (error %v)",tc.general,err)
+        }
+    }
+}

@@ -9,10 +9,10 @@ import { chromium } from 'playwright'
 
 const dir = await mkdtemp(join(tmpdir(), 'hookbox-ui-'))
 const file = join(dir, 'config.yaml')
-const original = '# untouched comment\ngeneral: {host: 127.0.0.1, port: 18780}\nwebhook: {}\nsecurity: {}\n'
+const original = '# untouched comment\ngeneral: {host: 127.0.0.1, port: 18780, admin_port: 18781}\nwebhook: {}\nsecurity: {}\n'
 await writeFile(file, original)
 const key = 'temporary-ui-test-key'
-const svc = spawn(resolve(process.argv[2]), ['--config',file,'--admin-listen','127.0.0.1:18781'], {
+const svc = spawn(resolve(process.argv[2]), ['--config',file], {
   env: {...process.env, HOOKBOX_ADMIN_SHA256:createHash('sha256').update(key).digest('hex')},
   stdio: ['ignore','inherit','inherit'],
 })
@@ -27,7 +27,7 @@ try {
   }
   assert.equal((await fetch(address+'/api/config')).status,401)
   assert.equal((await fetch('http://127.0.0.1:18780/api/config')).status,404)
-  browser=await chromium.launch({channel:'chrome'})
+  browser=await chromium.launch(process.env.CHROMIUM_EXECUTABLE ? {executablePath:process.env.CHROMIUM_EXECUTABLE} : {channel:'chrome'})
   const page=await browser.newPage()
   const errors=[]
   page.on('pageerror',e=>errors.push(e.message))
@@ -42,6 +42,15 @@ try {
   await page.getByText('Сохранено.',{exact:false}).waitFor()
   const source=await readFile(file,'utf8')
   assert.ok(source.includes('sample') && source.includes('--literal') && source.includes('# untouched comment'))
+  const inspector=page.getByRole('complementary',{name:'Свойства записи'})
+  await inspector.getByRole('heading',{name:'sample'}).waitFor()
+  assert.ok((await inspector.textContent()).includes('example --literal'))
+  await page.getByRole('textbox',{name:'Фильтр записей'}).fill('absent-route')
+  await page.getByText('Совпадений нет').waitFor()
+  await page.getByRole('button',{name:'Очистить фильтр'}).click()
+  await inspector.getByRole('button',{name:'Редактировать'}).click()
+  assert.equal(await page.getByLabel('Идентификатор').inputValue(),'sample')
+  await page.keyboard.press('Escape')
   await page.getByRole('button',{name:'Роли'}).click()
   await page.getByRole('button',{name:'Добавить',exact:true}).click()
   await page.getByLabel('Идентификатор').fill('r')

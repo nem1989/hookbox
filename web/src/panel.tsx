@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
+import { Webhook, ShieldCheck, Users, KeyRound, FileCode2, Server, LogOut, Plus, Search, Pencil, Trash2, Terminal, Globe2, LockKeyhole, ArrowRight, Save, X } from 'lucide-react'
 import { createRoot } from 'react-dom/client'
-import { Alert, Badge, Button, Checkbox, Group, MantineProvider, Modal, MultiSelect, PasswordInput, Select, Stack, Text, Textarea, TextInput, Title } from '@mantine/core'
+import { Alert, Button, Checkbox, Group, MantineProvider, Modal, MultiSelect, PasswordInput, Select, Stack, Textarea, TextInput } from '@mantine/core'
 import { parse, parseDocument, stringify } from 'yaml'
 import '@mantine/core/styles.css'
 import './panel.css'
@@ -41,7 +42,38 @@ function metadata(kind: Kind, id: string, item: any): string {
   return (item.roles || []).join(', ') || 'Без ролей'
 }
 function itemPath(kind: Kind, id: string) { return kind === 'webhook' ? [kind, id] : ['security', kind, id] }
-const symbol: Record<Kind | 'yaml', string> = {webhook: '↗', roles: '◇', users: '◎', tokens: '⌁', yaml: '{ }'}
+const icons = {webhook: Webhook, roles: ShieldCheck, users: Users, tokens: KeyRound, yaml: FileCode2}
+const singular = {webhook:'вебхук', roles:'роль', users:'пользователя', tokens:'токен'}
+const empty = {webhook:'Вебхуков пока нет', roles:'Ролей пока нет', users:'Пользователей пока нет', tokens:'Токенов пока нет'}
+const counts = {webhook:'Действия', roles:'Доступ к вебхукам', users:'Роли', tokens:'Пользователь'}
+const titleItem = {webhook:'Вебхук', roles:'Роль', users:'Пользователь', tokens:'Токен'}
+const enabledText = (item: any) => item.enabled === false ? 'Выключен' : 'Включён'
+
+function Brand() {
+  return <div className="brand"><span className="brand-mark"><Webhook size={23} strokeWidth={2.4}/></span>Hookbox</div>
+}
+
+function Properties({kind, id, value, startEdit, startRemove}: {kind: Kind, id: string, value: any, startEdit: () => void, startRemove: () => void}) {
+  const Icon = icons[kind]
+  const links = kind === 'roles' ? value : value.roles || []
+  return <aside className="inspector" aria-label="Свойства записи">
+    <div className="inspector-top"><Icon size={16}/><span>{titleItem[kind]}</span></div>
+    <h2>{id}</h2>
+    {kind !== 'roles' && <span className={'state '+(value.enabled === false ? 'muted' : '')}><i/>{enabledText(value)}</span>}
+    {kind === 'webhook' && <>
+      <h3>Маршрут</h3><code className="path">{value.path || '/hooks/'+id}</code>
+      <div className="method-list">{(value.methods || ['POST']).map((method:string)=><code key={method}>{method}</code>)}</div>
+      <h3>Действия <small>{value.actions.length}</small></h3>
+      <ol className="action-list">{value.actions.map((action:Fields,i:number)=>{
+        const command = action.type === 'command', I = command ? Terminal : Globe2
+        return <li key={i}><I size={16}/><div><b>{command?'Команда':'HTTP-запрос'}</b><code>{command ? (action.command || []).join(' ') : (action.method || 'POST')+' '+(action.url || '')}</code></div></li>
+      })}</ol>
+    </>}
+    {kind !== 'webhook' && <><h3>{counts[kind]}</h3>{kind==='tokens' ? <code className="path">{value.user}</code> : <p className="path">{links.join(', ') || 'Не назначены'}</p>}</>}
+    <div className="inspector-actions"><button className="secondary" onClick={startEdit}><Pencil size={14}/>Редактировать</button>
+      <button className="icon-button danger" aria-label={'Удалить '+id} title="Удалить" onClick={startRemove}><Trash2 size={15}/></button></div>
+  </aside>
+}
 
 function ActionForm({value, onChange}: {value: Fields, onChange: (v: Fields) => void}) {
   const field = (k: string, v: any) => { const next = {...value}; if (v === undefined) delete next[k]; else next[k] = v; onChange(next) }
@@ -136,6 +168,7 @@ function Panel() {
   const [section, setSection] = useState<Kind | 'yaml'>('webhook'), [edit, setEdit] = useState<{id:string|null}|null>(null)
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [remove, setRemove] = useState<string|null>(null)
   const [conflict, setConflict] = useState(false)
+  const [query, setQuery] = useState(''), [chosen, setChosen] = useState('')
   const dirty = source !== saved
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => { if (dirty) e.preventDefault() }
@@ -158,10 +191,16 @@ function Panel() {
       setTag(r.headers.get('ETag')!); setSaved(source); setNotice('Сохранено. Перезапусти службу, чтобы применить конфигурацию.')
     } catch(err) { setError(String(err)) } finally { setBusy(false) }
   }
-  if (!etag) return <main className="login"><div className="brand"><span>H</span> Hookbox</div><form onSubmit={e=>{e.preventDefault();load()}}>
-    <Title order={1}>Вход в панель</Title><PasswordInput label="Токен администратора" required value={key} onChange={e=>setKey(e.target.value)} autoComplete="off"/>
-    {error && <Alert color="red">{error}</Alert>}<Button type="submit" loading={busy}>Подключиться</Button>
-  </form></main>
+  if (!etag) return <main className="signin">
+    <div className="signin-top"><Brand/></div>
+    <form className="signin-form" onSubmit={e=>{e.preventDefault();load()}}>
+      <span className="login-symbol"><LockKeyhole size={24}/></span>
+      <h1>Подключение к серверу</h1>
+      <div className="login-host"><Server size={15}/><code>{location.host}</code></div>
+      <PasswordInput label="Токен администратора" autoFocus required value={key} onChange={e=>setKey(e.target.value)} autoComplete="off"/>
+      {error && <Alert color="red" role="alert">{error}</Alert>}
+      <Button type="submit" loading={busy} rightSection={<ArrowRight size={16}/>}>Подключиться</Button>
+    </form></main>
   let model: Model = {}, parseError = ''
   try {
     const candidate = decode(source).toJS() || {}
@@ -176,25 +215,46 @@ function Panel() {
     if (section === 'yaml') return
     if (!edit?.id && Object.hasOwn(items,id)) throw new Error('Такой идентификатор уже существует')
     validateItem(section,value)
-    const d = decode(source); d.setIn(itemPath(section,id), value); setSource(d.toString()); setEdit(null); setNotice('')
+    const d = decode(source); d.setIn(itemPath(section,id), value); setSource(d.toString()); setChosen(id); setQuery(''); setEdit(null); setNotice('')
   }
-  return <div className="shell"><aside><div className="brand"><span>H</span> Hookbox</div><nav>
-    {([...Object.entries(sections),['yaml','Конфигурация']] as [Kind|'yaml',string][]).map(([id,label])=><button key={id} className={section===id?'selected':''} onClick={()=>{setSection(id);setEdit(null)}}><i>{symbol[id]}</i>{label}</button>)}
-  </nav><button className="logout" onClick={()=>{if(!dirty || window.confirm('Выйти и потерять несохранённые изменения?')) {setKey('');setTag('');setSaved('');setSource('');setError('');setNotice('')}}}>Выйти</button></aside>
-  <main className="work"><header><div><Text size="sm" c="dimmed">{location.host}</Text><Title order={1}>{section==='yaml'?'Конфигурация':sections[section]}</Title></div>
-    <Button disabled={!dirty || busy} onClick={save}>Сохранить конфигурацию</Button></header>
-    {(error || parseError) && <Alert color="red" mb="md">{error || parseError}{conflict && <Button variant="subtle" onClick={()=>{if(window.confirm('Загрузить серверную версию и потерять локальные правки?'))load()}}>Загрузить серверную версию</Button>}</Alert>}
-    {notice && <Alert color="teal" mb="md">{notice}</Alert>}
-    {section==='yaml' ? <Textarea className="mono" label="YAML" autosize minRows={18} value={source} onChange={e=>{setSource(e.target.value);setNotice('')}}/> : <>
-      <div className="listbar"><Text fw={600}>Всего · {Object.keys(items).length}</Text><Button variant="light" disabled={!!parseError} onClick={()=>setEdit({id:null})}>Добавить</Button></div>
-      <div className="entries">{Object.entries(items).map(([id,item])=><div className="entry" key={id}><button className="entity" onClick={()=>setEdit({id})}><strong>{id}</strong><small>{metadata(section,id,item)}</small></button>
-        {section!=='roles' && <Badge variant="light" color={item.enabled===false?'gray':'teal'}>{item.enabled===false?'Выключен':'Включён'}</Badge>}
-        <Button variant="subtle" color="gray" size="compact-xs" onClick={()=>setRemove(id)}>Удалить</Button></div>)}
-        {!Object.keys(items).length && <Text c="dimmed" p="xl">Пока нет записей</Text>}</div>
+  const matches = section === 'yaml' ? [] : Object.entries(items).filter(([id,item]) =>
+    (id+' '+metadata(section,id,item)).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+  const selected = matches.find(([id])=>id===chosen) || matches[0]
+  const nav = (id:Kind|'yaml', label:string) => { const I=icons[id]; return <button key={id} aria-current={section===id?'page':undefined}
+    onClick={()=>{setSection(id);setEdit(null);setRemove(null);setQuery('');setChosen('')}}><I size={17}/>{label}</button> }
+  return <div className="shell"><aside className="rail"><Brand/><nav aria-label="Основная навигация">
+    {nav('webhook',sections.webhook)}<div className="nav-label">Доступ</div>
+    {nav('roles',sections.roles)}{nav('users',sections.users)}{nav('tokens',sections.tokens)}
+    <div className="nav-label">Сервер</div>{nav('yaml','Конфигурация')}
+  </nav><div className="connection"><Server size={17}/><div><small>Подключено</small><code>{location.host}</code></div>
+    <button aria-label="Выйти" title="Выйти" onClick={()=>{if(!dirty || window.confirm('Выйти и потерять несохранённые изменения?')) {
+      setKey('');setTag('');setSaved('');setSource('');setError('');setNotice('');setSection('webhook');setQuery('');setChosen('');setConflict(false);setEdit(null);setRemove(null)
+    }}}><LogOut size={15}/></button></div></aside>
+    <main className="work"><header className="page-head"><div><h1>{section==='yaml'?'Конфигурация':sections[section]}</h1>
+      {section!=='yaml' && <span className="count">{Object.keys(items).length}</span>}</div>
+      {section!=='yaml' && Object.keys(items).length>0 && <Button size="sm" leftSection={<Plus size={15}/>} disabled={!!parseError} onClick={()=>setEdit({id:null})}>Добавить</Button>}</header>
+    {(error || parseError) && <Alert color="red" mb="md" role="alert">{error || parseError}{conflict && <Button variant="subtle" onClick={()=>{if(window.confirm('Загрузить серверную версию и потерять локальные правки?'))load()}}>Загрузить серверную версию</Button>}</Alert>}
+    {notice && <Alert color="teal" mb="md" role="status">{notice}</Alert>}
+    {section==='yaml' ? <Textarea className="mono yaml-source" label="config.yaml" autosize minRows={18} value={source} onChange={e=>{setSource(e.target.value);setNotice('')}}/> : <>
+      {Object.keys(items).length ? <div className="split"><section className="catalog">
+        <div className="filter"><Search size={16}/><input aria-label="Фильтр записей" placeholder={section==='webhook'?'Поиск по имени или маршруту':'Поиск по записям'} value={query} onChange={e=>setQuery(e.target.value)}/>
+          {query && <button className="icon-button" aria-label="Очистить фильтр" onClick={()=>setQuery('')}><X size={14}/></button>}</div>
+        <div className="column-label"><span>Имя</span><span>{section==='webhook'?'Метод':counts[section]}</span></div>
+        {matches.map(([id,item])=><button key={id} className={'record '+(selected?.[0]===id?'active':'')} aria-pressed={selected?.[0]===id}
+          onClick={()=>setChosen(id)} onDoubleClick={()=>setEdit({id})}>
+          <span><b>{id}{section!=='roles' && item.enabled===false && <em className="disabled-label">Выключен</em>}</b>{section==='webhook' && <code>{item.path || '/hooks/'+id}</code>}</span>
+          <small>{section==='webhook'?(item.methods||['POST']).join(' · '):metadata(section,id,item)}</small></button>)}
+        {!matches.length && <div className="no-match">Совпадений нет</div>}
+      </section>{selected && <Properties kind={section} id={selected[0]} value={selected[1]} startEdit={()=>setEdit({id:selected[0]})} startRemove={()=>setRemove(selected[0])}/>}</div> :
+      <div className="empty"><span className="empty-icon">{React.createElement(icons[section],{size:28})}</span><h2>{empty[section]}</h2>
+      {section==='webhook' && <p>Укажи маршрут и действия для первого входящего запроса.</p>}
+      <Button leftSection={<Plus size={15}/>} disabled={!!parseError} onClick={()=>setEdit({id:null})} aria-label="Добавить">Создать {singular[section]}</Button></div>}
       {edit && <Editor key={section+(edit.id||'')} kind={section} id={edit.id} model={model} initial={edit.id ? items[edit.id] : newItem(section)} close={()=>setEdit(null)} apply={apply}/>}
       <Modal opened={remove!==null} onClose={()=>setRemove(null)} title={'Удалить '+remove+'?'} centered><Group justify="end"><Button variant="default" onClick={()=>setRemove(null)}>Отмена</Button><Button color="red" onClick={()=>{if(remove){const d=decode(source);d.deleteIn(itemPath(section,remove));setSource(d.toString());setRemove(null);setNotice('')}}}>Удалить</Button></Group></Modal>
     </>}
+    <footer className="savebar"><span className={dirty?'changed':''}><i/>{dirty?'Есть несохранённые изменения':'Изменений нет'}</span>
+      <button className="secondary" disabled={!dirty || busy} onClick={save}><Save size={14}/>Сохранить конфигурацию</button></footer>
   </main></div>
 }
 
-createRoot(document.getElementById('root')!).render(<MantineProvider theme={{primaryColor:'teal',defaultRadius:'md',fontFamily:'Inter, Segoe UI, sans-serif'}}><Panel/></MantineProvider>)
+createRoot(document.getElementById('root')!).render(<MantineProvider theme={{primaryColor:'indigo',defaultRadius:'sm',fontFamily:'Segoe UI, Inter, system-ui, sans-serif'}}><Panel/></MantineProvider>)

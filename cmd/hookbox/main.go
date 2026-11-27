@@ -39,7 +39,7 @@ func run(args []string, out io.Writer) error {
 	file := flags.String("config", "config.yaml", "YAML configuration path")
 	check := flags.Bool("check-config", false, "validate the YAML configuration and exit")
 	generate := flags.Bool("generate-token", false, "generate a random token and SHA-256 digest")
-	panelAddr := flags.String("admin-listen", "127.0.0.1:8081", "management listener (set HOOKBOX_ADMIN_SHA256 to enable)")
+	panelAddr := flags.String("admin-listen", "", "override the management address (default: 127.0.0.1:<general.admin_port>)")
 	if err := flags.Parse(args); err != nil { return err }
 	if flags.NArg() != 0 || (*check && *generate) { return errors.New("invalid arguments") }
 	if *generate {
@@ -68,6 +68,7 @@ func run(args []string, out io.Writer) error {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: levels[c.General.Level]})))
 	var panel http.Handler
 	if hash := os.Getenv("HOOKBOX_ADMIN_SHA256"); hash != "" {
+		if *panelAddr == "" { *panelAddr = net.JoinHostPort("127.0.0.1", strconv.Itoa(c.General.AdminPort)) }
 		for _, t := range c.Security.Tokens {
 			if equalHash(t.Hash, hash) { return errors.New("management and webhook tokens must be distinct") }
 		}

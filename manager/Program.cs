@@ -17,10 +17,12 @@ internal static class Program
 internal sealed class Manager : Form
 {
     private readonly WebView2 view = new() { Dock = DockStyle.Fill };
-    private readonly ToolStripTextBox address = new() { Text = "http://127.0.0.1:8081/", AutoSize = false, Width = 255 };
-    private readonly ToolStripDropDownButton service = new("Локальная служба");
-    private readonly ToolStripStatusLabel status = new();
-    private readonly ToolStripButton connect = new("Подключиться");
+    private Uri endpoint = new("http://127.0.0.1:8081/");
+    private readonly Panel offline = new() { Dock = DockStyle.Fill, BackColor = SystemColors.Window, Visible = false };
+    private readonly Label offlineAddress = new() { AutoSize = true, Margin = new Padding(0, 5, 0, 18) };
+    private readonly ToolStripMenuItem service = new("Локальная служба");
+    private readonly ToolStripMenuItem status = new() { Enabled = false };
+    private readonly ToolStripMenuItem changeServer = new("Сменить сервер…") { ShortcutKeys = Keys.Control | Keys.K };
     private readonly System.Windows.Forms.Timer poll = new() { Interval = 3000 };
     private bool operating;
 
@@ -30,18 +32,36 @@ internal sealed class Manager : Form
         MinimumSize = new Size(760, 520);
         Size = new Size(1120, 800);
         StartPosition = FormStartPosition.CenterScreen;
-        var bar = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, Padding = new Padding(8, 4, 8, 4) };
-        bar.Items.AddRange([new ToolStripLabel("Панель"), address, connect, new ToolStripSeparator(), service]);
+        var menu = new MenuStrip { BackColor = SystemColors.Window };
+        var connection = new ToolStripMenuItem("Подключение");
+        connection.DropDownItems.Add(changeServer);
+        changeServer.Click += (_, _) => ChooseServer();
+        connection.DropDownItems.Add("Повторить подключение", null, (_, _) => Navigate());
         foreach (var (label, op) in new[] { ("Запустить", "start"), ("Остановить", "stop"), ("Перезапустить", "restart") })
             service.DropDownItems.Add(label, null, async (_, _) => await ChangeService(op));
-        var info = new StatusStrip();
-        info.Items.Add(status);
+        service.DropDownItems.Add(new ToolStripSeparator());
+        service.DropDownItems.Add(status);
+        menu.Items.AddRange([connection, service]);
+        MainMenuStrip = menu;
+        var message = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+        message.Controls.Add(new Label { Text = "Сервер недоступен", AutoSize = true, Font = new Font("Segoe UI", 19), Margin = Padding.Empty });
+        message.Controls.Add(offlineAddress);
+        var retry = new Button { AutoSize = true, Text = "Повторить подключение" };
+        retry.Click += (_, _) => Navigate();
+        var choose = new Button { AutoSize = true, Text = "Сменить сервер…" };
+        choose.Click += (_, _) => ChooseServer();
+        var actions = new FlowLayoutPanel { AutoSize = true, Margin = Padding.Empty };
+        actions.Controls.AddRange([retry, choose]);
+        message.Controls.Add(actions);
+        var center = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 1 };
+        center.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        center.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        message.Anchor = AnchorStyles.None;
+        center.Controls.Add(message);
+        offline.Controls.Add(center);
         Controls.Add(view);
-        Controls.Add(bar);
-        Controls.Add(info);
-        connect.Enabled = false;
-        connect.Click += (_, _) => Navigate();
-        address.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter && connect.Enabled) { e.SuppressKeyPress = true; Navigate(); } };
+        Controls.Add(offline);
+        Controls.Add(menu);
         Load += async (_, _) => await InitializeBrowser();
         poll.Tick += (_, _) => RefreshService();
         FormClosed += (_, _) => poll.Dispose();
@@ -66,7 +86,15 @@ internal sealed class Manager : Form
             view.CoreWebView2.Settings.IsWebMessageEnabled = false;
             view.CoreWebView2.NavigationStarting += (_, e) => e.Cancel = !Uri.TryCreate(e.Uri, UriKind.Absolute, out var u) || !Allowed(u);
             view.CoreWebView2.NewWindowRequested += (_, e) => e.Handled = true;
-            connect.Enabled = true;
+            view.CoreWebView2.Settings.IsBuiltInErrorPageEnabled = false;
+            view.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+            view.CoreWebView2.NavigationCompleted += (_, e) =>
+            {
+                if (e.WebErrorStatus == CoreWebView2WebErrorStatus.OperationCanceled) return;
+                offlineAddress.Text = endpoint.GetLeftPart(UriPartial.Authority);
+                offline.Visible = !e.IsSuccess;
+                view.Visible = e.IsSuccess;
+            };
             Navigate();
         }
         catch (Exception exc)
@@ -78,12 +106,32 @@ internal sealed class Manager : Form
 
     private void Navigate()
     {
-        if (!Uri.TryCreate(address.Text.Trim(), UriKind.Absolute, out var u) || !Allowed(u))
-        {
-            MessageBox.Show(this, "Введи HTTPS-адрес панели или HTTP-адрес на localhost.", Text);
-            return;
-        }
-        view.CoreWebView2.Navigate(u.AbsoluteUri);
+        if (view.CoreWebView2 != null) view.CoreWebView2.Navigate(endpoint.AbsoluteUri);
+    }
+
+    private void ChooseServer()
+    {
+        using var dialog = new Form { Text = "Подключение к серверу", StartPosition = FormStartPosition.CenterParent,
+            ClientSize = new Size(440, 150), FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+        var label = new Label { Text = "Адрес панели управления", Left = 16, Top = 16, AutoSize = true };
+        var input = new TextBox { Text = endpoint.AbsoluteUri, Left = 16, Top = 42, Width = 408 };
+        var hint = new Label { Left = 16, Top = 72, Width = 410, Height = 25, ForeColor = SystemColors.GrayText };
+        var ok = new Button { Text = "Подключиться", Left = 202, Top = 106, Width = 115 };
+        var cancel = new Button { Text = "Отмена", Left = 325, Top = 106, Width = 99, DialogResult = DialogResult.Cancel };
+        ok.Click += (_, _) => {
+            if (!Uri.TryCreate(input.Text.Trim(), UriKind.Absolute, out var uri) || !Allowed(uri)) {
+                hint.Text = "Введите HTTPS-адрес или локальный HTTP-адрес.";
+                input.Focus();
+                return;
+            }
+            endpoint = uri;
+            dialog.DialogResult = DialogResult.OK;
+        };
+        dialog.AcceptButton = ok;
+        dialog.CancelButton = cancel;
+        dialog.Controls.AddRange([label, input, hint, ok, cancel]);
+        dialog.Shown += (_, _) => { input.Focus(); input.SelectAll(); };
+        if (dialog.ShowDialog(this) == DialogResult.OK) Navigate();
     }
 
     private void RefreshService()
@@ -101,7 +149,8 @@ internal sealed class Manager : Form
         catch (Exception)
         {
             status.Text = "Локальная служба Hookbox недоступна";
-            service.Enabled = false;
+            for (var i = 0; i < 3; i++) service.DropDownItems[i].Enabled = false;
+            service.Enabled = true;
         }
     }
 

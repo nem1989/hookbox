@@ -1,6 +1,7 @@
 general:
   host: 127.0.0.1
   port: 8080
+  admin_port: 8081
   log_level: info
 webhook: {}
 security:
